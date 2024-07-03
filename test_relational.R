@@ -45,11 +45,7 @@ Orders <- data.frame(
                            "2024-07-10", "2024-07-12", "2024-07-15", "2024-07-18", "2024-07-20",
                            "2024-07-22", "2024-07-25", "2024-07-28", "2024-07-30", "2024-08-02",
                            "2024-08-05", "2024-08-08", "2024-08-10", "2024-08-12", "2024-08-15", "2024-08-18")),
-    total_amount = c(150.00, 200.00, 75.00, 300.00, 50.00,
-                     400.00, 100.00, 250.00, 180.00, 300.00,
-                     120.00, 80.00, 220.00, 150.00, 90.00,
-                     200.00, 300.00, 400.00, 150.00, 125.00,
-                     175.00, 250.00, 300.00, 400.00, 200.00, 125.00),
+    total_amount = rnorm(26, 300, 18),
     product_id = c(201, 202, 203, 201, 202,
                    203, 201, 202, 203, 201,
                    202, 203, 201, 202, 203,
@@ -132,8 +128,37 @@ query_cte <- glue("
 dbGetQuery(con, glue(query_cte))
 
 #These are equivalent:
-all.equal(dbGetQuery(con, glue(query_cte)), dbGetQuery(con, glue(query2))
-)
+all.equal(dbGetQuery(con, glue(query_cte)), dbGetQuery(con, glue(query2)))
 
+###Some additional functionality....#####
+cte2 <- glue("
+    WITH cte AS (
+    SELECT c.customer_id
+    , c.customer_name
+    , c.age
+    , CASE 
+        WHEN c.age <= 25 THEN 'old' 
+        WHEN c.age > 25 AND c.age <= 50 THEN 'middle_age'
+        ELSE 'old' END AS age_cat
+    , c.sex
+    , o.total_amount
+    FROM read_parquet('{paste(folder, 'Customers.parquet', sep='/')}') AS c
+    INNER JOIN read_parquet('{paste(folder, 'Orders.parquet', sep='/')}') AS o
+        ON c.Customer_id = o.Customer_id
+    )
+")
+
+query_addtl <- glue("
+    {cte2}
+    
+    SELECT
+        age_cat
+        ,SUM(total_amount) AS group_sum
+        FROM cte
+        GROUP BY age_cat
+        ORDER BY age_cat
+")
+
+dbGetQuery(con, query_addtl)
 
 
