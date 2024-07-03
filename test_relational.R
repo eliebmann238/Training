@@ -105,5 +105,35 @@ query3 <- "SELECT c.*, o.*, p.*
 
 dbGetQuery(con, glue(query3))
 
+######Subuery example####
+query_sub1 <- "SELECT *
+                FROM (SELECT *
+                      FROM read_parquet('{paste(folder, 'Customers.parquet', sep='/')}')
+                      WHERE age > 40) AS t
+    "
+dbGetQuery(con, glue(query_sub1))
+
+##look, these are equivalent    queries:
+all.equal(dbGetQuery(con, glue(query_sub1)), dbGetQuery(con, glue(query)))
+
+####Common table expression example:####
+cte <- "WITH cte AS (
+    SELECT *
+    FROM read_parquet('{paste(folder, 'Customers.parquet', sep='/')}')
+    WHERE age > 40)"
+
+query_cte <- glue("
+    {cte}
+    SELECT cte.*, o.*
+    FROM read_parquet('{paste(folder, 'Orders.parquet', sep='/')}') AS o
+    INNER JOIN cte AS cte
+        ON cte.Customer_id = o.Customer_id
+    ")
+dbGetQuery(con, glue(query_cte))
+
+#These are equivalent:
+all.equal(dbGetQuery(con, glue(query_cte)), dbGetQuery(con, glue(query2))
+)
+
 
 
