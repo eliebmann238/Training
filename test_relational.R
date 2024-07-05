@@ -62,9 +62,10 @@ Products <- data.frame(
                    80.00, 40.00, 20.00, 300.00, 150.00)
 )
 
+tables <- c('Customers', 'Orders', 'Products')
 
 ##save DFs as parquet files
-lapply(c('Customers', 'Orders', 'Products'), 
+lapply(tables, 
         function(x) write_parquet(get(x), paste0(x, '.parquet')))
 
 ########################## duckdb ###################
@@ -160,5 +161,43 @@ query_addtl <- glue("
 ")
 
 dbGetQuery(con, query_addtl)
+
+####Database-related ideas############
+#You can write tables to a duckdb database using data frames that are in memory
+lapply(tables, function(x) dbWriteTable(con, x, get(x)))
+
+#do we have what we should in the database?
+identical(dbListTables(con), tables) # Yes
+
+##let's drop the tables from global env
+rm(list = tables)
+
+query_db <- "SELECT c.*, o.*, p.*
+               FROM Customers AS c
+           INNER JOIN Orders AS o
+            ON c.customer_id = o.Customer_id
+           INNER JOIN Products AS p
+            ON p.product_id = o.product_id"
+
+dbGetQuery(con, query_db)
+
+#More useful for us, we can write tables to a database directly from the parquet files
+##remove tables
+lapply(tables, function(x) dbRemoveTable(con, x))
+
+create_table <- function(connection, path, table) {
+    q <- glue("CREATE OR REPLACE TABLE {table} AS
+         SELECT *
+         FROM read_parquet('{paste(path, paste0(table, '.parquet'), sep='/')}')")
+    dbExecute(connection, q)
+}
+
+lapply(tables, function(table) create_table(con, folder, table))
+
+#We can now work with the tables, but they are not in not in memory
+tables %in% ls()
+
+#same result as above
+dbGetQuery(con, query_db)
 
 
